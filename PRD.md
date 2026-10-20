@@ -7,26 +7,25 @@
 
 ### Functional Requirements ###
 
-FR1: The website must allow the user to input tasks into a kanban board. (MVP)
-FR2: The website must allow the user to store prompts and their results. (MVP)
-FR3: The website must have a section to add important notes about the project, such as the AI agent being used for the project.
+FR1: The website must allow the user to input tasks onto a kanban board. (MVP)
+FR2: The website must allow the user to store prompts and their results for each task. (MVP)
+FR3: The website must allow the AI tool used to be noted on each task.
 FR4: The website must allow multiple users to be assigned to tasks on the kanban board.
 FR5: The kanban board must include four sections: To Do, In Progress, Review, Done (MVP)
-FR6: Users should be able to move tasks on the kanban board (MVP)
+FR6: Users should be able to move tasks from column to column on the kanban board. (MVP)
 FR7: Users should be able to edit tasks on the kanban board (MVP)
 FR8: Users should be able to tag tasks as either "feature" or "bug"
 FR9: The website should have a pinned top banner for four final-project deliverables "Presentation", Demo", "Report", "Documentation" along with a dot indicator to show if they are in use (MVP)
-FR10: Users should be able to drag tasks into one of the columns on the board
-FR11: There should be a context option in the tasks to include the context of the task
-FR12: There should be a button that copies the context
+FR10: There should be a context option in the tasks to include the context of the task.
+FR11: There should be a button that copies the context from a task.
+FR12: Users should be able to delete tasks off the kanban board. (MVP)
 
 ### Non-Functional Requirements ###
 
-NFR1: The colour scheme should include black and blue
-NFR2: The software should have elements correctly labelled so that they can be identified by screen readers (MVP)
-NFR3: Tasks should be colour coded based on due date so users know what is the most pressing issue
-NFR4: There should be a login page so that kanban boards can be secured for secret projects
-NFR5: The colours on the website should be high contrast so that visually impaired users can easily see the website
+NFR1: The colour scheme should include black and blue.
+NFR2: The software should have elements correctly labelled so that they can be identified by screen readers. (MVP)
+NFR3: Tasks should be colour coded based on due date so users know what task is due the soonest.
+NFR4: The colours on the website should be high contrast so that visually impaired users can easily see the website.
 
 ### Data Requirements ###
 
