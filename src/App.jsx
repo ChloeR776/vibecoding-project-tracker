@@ -2,26 +2,13 @@ import { useState, useEffect } from 'react';
 
 /**
  * Vibecoding Project Tracker — starter scaffold.
- * 
- *  * This file is intentionally almost empty. The boilerplate (Vite, React,
- * Tailwind) is configured for you, plus a few shared constants and a
- * localStorage helper. Everything visible on screen, you build.
  *
- * Where to start (build sequence in Phase 3):
- *   - M4  data-model    : render the four columns and the task cards below.
- *   - M5  crud-modal    : add the "+" button modal and the edit-on-click modal.
- *   - M6  tag-style     : feature vs. bug color coding (uses DESIGN.md §2 colors).
- *   - M7  task-owner    : assignee badge + "Hand off to..." dropdown.
- *   - M8  due-tint      : color cards by due date (uses DESIGN.md §2 due-state colors).
- *   - M9  context       : a curated Context briefing field on the modal.
- *   - M10 copy-prompt   : a "Copy as Prompt Context" button that serializes the task + context.
- *   - M11 anchors       : the Anchor Board above the Kanban.
- *   - M12 secret-sauce  : the one open-ended thing that makes your tracker yours.
- *
- * Search the file for `TODO M<n>` to find the right hook for each milestone.
- *
- * Implemented here: M4 (data-model) and M5 (crud-modal).
+ * Implemented here: M4 (data-model), M5 (crud-modal) and the card colouring/icons from M6 (tag-style).
  * Remaining milestones are still marked with `TODO M<n>` comments.
+ *
+ * Colours are Tailwind arbitrary values, so they work without any tailwind.config.js changes.
+ * Palette: brandPrimary #3E3C6B, brandAccent #4F4C8A, surfacePage #000000, surfaceCard #2B2B2B,
+ * textPrimary #FFFFFF, textMuted #999696, feature #10B981, bug #DC2626.
  */
 
 /**
@@ -118,25 +105,13 @@ const SEED_TASKS = [
   },
 ];
 
-/*
- * Palette (applied as Tailwind arbitrary values):
- *   brandPrimary  #3E3C6B   buttons, card borders, column tint
- *   brandAccent   #4F4C8A   hover, focus, column top borders, feature badge
- *   surfacePage   #000000   page background
- *   surfaceCard   #2B2B2B   cards, modal, count pills
- *   textPrimary   #FFFFFF   titles and main text
- *   textMuted     #999696   labels, descriptions, timestamps
- */
-const TYPE_STYLES = {
-  feature: 'bg-[#4F4C8A] text-white',
-  bug: 'bg-rose-500/20 text-rose-300',
-};
-
-const STAGE_ACCENT = {
-  'todo': 'border-[#4F4C8A]',
-  'in-progress': 'border-[#4F4C8A]',
-  'review': 'border-[#4F4C8A]',
-  'done': 'border-[#4F4C8A]',
+const EMPTY_TASK = {
+  title: '',
+  description: '',
+  type: 'feature',
+  status: 'todo',
+  assignee: TEAM[0],
+  dueDate: '',
 };
 
 const formatDate = (iso) =>
@@ -148,18 +123,56 @@ const formatDate = (iso) =>
       })
     : 'None';
 
-const EMPTY_TASK = {
-  title: '',
-  description: '',
-  type: 'feature',
-  status: 'todo',
-  assignee: TEAM[0],
-  dueDate: '',
+/* ---------- M6 tag-style: card colour + icon per type ---------- */
+
+// Feature cards are emerald, bug cards are crimson.
+// Text is dark on the light emerald and white on the crimson so it stays readable.
+const TYPE_STYLES = {
+  feature: { label: 'Feature', card: 'bg-[#10B981]', text: 'text-black', muted: 'text-black/70' },
+  bug:     { label: 'Bug',     card: 'bg-[#DC2626]',     text: 'text-white', muted: 'text-white/80' },
 };
+
+function CogIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function BugIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="8" y="8" width="8" height="12" rx="4" />
+      <path d="M9 4l2 4M15 4l-2 4M8 12H4M16 12h4M8 17l-3 2M16 17l3 2" />
+    </svg>
+  );
+}
 
 /* ---------- components ---------- */
 
 function TaskCard({ task, onOpen, onDragStart }) {
+  const style = TYPE_STYLES[task.type];
+  const Icon = task.type === 'bug' ? BugIcon : CogIcon;
   const overdue =
     task.dueDate &&
     task.status !== 'done' &&
@@ -170,27 +183,32 @@ function TaskCard({ task, onOpen, onDragStart }) {
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
       onClick={() => onOpen(task)}
-      className="cursor-pointer rounded-lg border border-[#3E3C6B] bg-[#2B2B2B] p-3 shadow-sm hover:border-[#4F4C8A]"
+      className={`cursor-pointer rounded-lg border border-white/20 p-3 shadow-sm hover:border-white/60 ${style.card} ${style.text}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold leading-snug text-white">{task.title}</h3>
-        <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[task.type]}`}>
-          {task.type === 'bug' ? 'Bug' : 'Feature'}
+        <h3 className="text-sm font-semibold leading-snug">{task.title}</h3>
+        <span
+          role="img"
+          aria-label={style.label}
+          title={style.label}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black/30 text-white"
+        >
+          <Icon />
         </span>
       </div>
 
-      {task.description && <p className="mt-2 text-sm text-[#999696]">{task.description}</p>}
+      {task.description && <p className={`mt-2 text-sm ${style.muted}`}>{task.description}</p>}
 
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-white">
-        <dt className="text-[#999696]">Assignee</dt>
-        <dd>{task.assignee || 'Unassigned'}</dd>
-        <dt className="text-[#999696]">Due</dt>
-        <dd className={overdue ? 'font-semibold text-rose-400' : ''}>
+      <dl className={`mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs ${style.muted}`}>
+        <dt>Assignee</dt>
+        <dd className={style.text}>{task.assignee || 'Unassigned'}</dd>
+        <dt>Due</dt>
+        <dd className={`${style.text} ${overdue ? 'font-bold underline' : ''}`}>
           {formatDate(task.dueDate)}
           {overdue && ' (overdue)'}
         </dd>
-        <dt className="text-[#999696]">Created</dt>
-        <dd className="text-[#999696]">{formatDate(task.createdDate)}</dd>
+        <dt>Created</dt>
+        <dd>{formatDate(task.createdDate)}</dd>
       </dl>
     </article>
   );
@@ -211,12 +229,12 @@ function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
         setOver(false);
         onDropTask(e, stage.id);
       }}
-      className={`flex min-h-[200px] flex-col rounded-xl border-t-4 p-3 transition-colors ${
-        STAGE_ACCENT[stage.id]
-      } ${over ? 'bg-[#3E3C6B]/40' : 'bg-[#3E3C6B]/20'}`}
+      className={`flex min-h-[200px] flex-col rounded-xl border-t-4 border-[#4F4C8A] p-3 transition-colors ${
+        over ? 'bg-[#3E3C6B]/40' : 'bg-[#3E3C6B]/20'
+      }`}
     >
       <header className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-bold text-white">{stage.label}</h2>
+        <h2 className="text-base font-bold text-[#FFFFFF]">{stage.label}</h2>
         <span className="rounded-full bg-[#2B2B2B] px-2 py-0.5 text-xs font-medium text-[#999696]">
           {tasks.length}
         </span>
@@ -237,7 +255,7 @@ function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
 }
 
 const fieldClass =
-  'mt-1 w-full rounded-md border border-[#3E3C6B] bg-[#000000] px-3 py-2 text-sm text-white [color-scheme:dark] focus:border-[#4F4C8A] focus:outline-none focus:ring-2 focus:ring-[#4F4C8A]/50';
+  'mt-1 w-full rounded-md border border-[#3E3C6B] bg-[#000000] px-3 py-2 text-sm text-[#FFFFFF] [color-scheme:dark] focus:border-[#4F4C8A] focus:outline-none focus:ring-2 focus:ring-[#4F4C8A]/50';
 
 function TaskModal({ task, onSave, onDelete, onClose }) {
   const isEdit = Boolean(task.id);
@@ -260,7 +278,7 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md space-y-4 rounded-xl border border-[#3E3C6B] bg-[#2B2B2B] p-6 shadow-xl"
       >
-        <h2 className="text-lg font-bold text-white">{isEdit ? 'Edit task' : 'New task'}</h2>
+        <h2 className="text-lg font-bold text-[#FFFFFF]">{isEdit ? 'Edit task' : 'New task'}</h2>
 
         <label className="block text-sm font-medium text-[#999696]">
           Title
@@ -304,16 +322,14 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
           </label>
         </div>
 
-        {isEdit && (
-          <p className="text-xs text-[#999696]">Created {formatDate(form.createdDate)}</p>
-        )}
+        {isEdit && <p className="text-xs text-[#999696]">Created {formatDate(form.createdDate)}</p>}
 
         <div className="flex items-center justify-between pt-2">
           {isEdit ? (
             <button
               type="button"
               onClick={() => onDelete(task.id)}
-              className="rounded-md px-3 py-2 text-sm font-medium text-rose-400 hover:bg-rose-500/10"
+              className="rounded-md px-3 py-2 text-sm font-medium text-[#DC2626] hover:bg-[#DC2626]/10"
             >
               Delete task
             </button>
@@ -324,13 +340,13 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-4 py-2 text-sm font-medium text-[#999696] hover:bg-[#3E3C6B]/30 hover:text-white"
+              className="rounded-md px-4 py-2 text-sm font-medium text-[#999696] hover:bg-[#3E3C6B]/30 hover:text-[#FFFFFF]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-md bg-[#3E3C6B] px-4 py-2 text-sm font-medium text-white hover:bg-[#4F4C8A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]"
+              className="rounded-md bg-[#3E3C6B] px-4 py-2 text-sm font-medium text-[#FFFFFF] hover:bg-[#4F4C8A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]"
             >
               {isEdit ? 'Save changes' : 'Add task'}
             </button>
@@ -380,7 +396,7 @@ export default function App() {
     <div className="min-h-screen bg-[#000000] p-6">
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Vibecoding Project Tracker</h1>
+          <h1 className="text-2xl font-bold text-[#FFFFFF]">Vibecoding Project Tracker</h1>
           <p className="text-sm text-[#999696]">
             {/* Replace this line with your team name from PRD §11. */}
             Team starter
@@ -389,7 +405,7 @@ export default function App() {
         <button
           onClick={() => setEditing({ ...EMPTY_TASK })}
           aria-label="Add task"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3E3C6B] text-2xl leading-none text-white hover:bg-[#4F4C8A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3E3C6B] text-2xl leading-none text-[#FFFFFF] hover:bg-[#4F4C8A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]"
         >
           +
         </button>
