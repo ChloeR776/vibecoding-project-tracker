@@ -12,17 +12,17 @@
 
 One sentence that captures the feeling the tracker should leave you with.
 
-`<TODO>`
+`Sleek, modern and readable`
 
 Two or three references that capture the vibe (links to dribbble shots, screenshots of apps you admire, Pinterest boards — anything visual):
 
-- `<TODO>`
-- `<TODO>`
-- `<TODO>`
+- <img width="1908" height="863" alt="image of GitLab issue board" src="https://github.com/user-attachments/assets/6e6bf5f1-e21a-4c57-87b3-e56ca9bc0b0d" />
+- <img width="1863" height="862" alt="image" src="https://github.com/user-attachments/assets/fd664a97-592e-4f2b-8349-01f9c331bb80" />
 
 Anti-references — what we are explicitly **not** trying to look like:
 
-- `<TODO>`
+- <img width="800" height="601" alt="image" src="https://github.com/user-attachments/assets/83123327-bd71-4ed8-b220-451fa231611c" />
+
 
 ## 2. Color palette
 
