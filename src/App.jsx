@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
  * TrackIt — Vibecoding Project Tracker.
  *
  * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (type stripe + icons),
- * M8 due-tint (card colour + tag by due date) and the M7 handoff toast (fires when an assignee changes).
- * Still open: M7 "Hand off to..." dropdown, M9 context, M10 copy-prompt,
+ * M8 due-tint (card colour + tag by due date), M9 context (Markdown briefing,
+ * AI tool, last-updated timestamp) and the M7 handoff toast (fires when an assignee changes).
+ * Still open: M7 "Hand off to..." dropdown, M10 copy-prompt,
  * M11 anchors, M12 secret-sauce. Search for `TODO M<n>`.
  *
  * Colours are Tailwind arbitrary values, so no tailwind.config.js changes are needed.
@@ -27,6 +28,9 @@ import { useState, useEffect } from 'react';
  * @property {string} assignee
  * @property {string|null} dueDate     ISO 'YYYY-MM-DD'
  * @property {string} createdDate      ISO 'YYYY-MM-DD'
+ * @property {string} context          Markdown briefing (Background, Constraints, ...)
+ * @property {string} aiTool           one of AI_TOOLS
+ * @property {string|null} contextUpdated  ISO timestamp of the last change to `context`
  */
 
 // The four columns of the board, in render order.
@@ -41,6 +45,19 @@ export const STAGES = [
 // Replace these placeholders with the three names from PRD §8.
 // They are the only valid values for `Task.assignee`.
 export const TEAM = ['Teammate A', 'Teammate B', 'Teammate C'];
+
+// Options for the "AI tool used" dropdown on the Context section.
+export const AI_TOOLS = ['Claude', 'ChatGPT', 'Cursor', 'Lovable', 'Replit', 'Other'];
+
+// Pre-filled into the Context field of every new task.
+export const CONTEXT_TEMPLATE = `## Background
+
+## Constraints
+
+## Tried so far
+
+## Pick up
+`;
 
 /**
  * A tiny localStorage hook — survives reloads, no library needed.
@@ -97,6 +114,17 @@ const formatDate = (iso) =>
       })
     : 'None';
 
+const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+
+const formatDateTime = (iso) =>
+  new Date(iso).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
 /** @type {Task[]} */
 const SEED_TASKS = [
   {
@@ -108,6 +136,21 @@ const SEED_TASKS = [
     assignee: TEAM[0],
     dueDate: isoDay(7),
     createdDate: isoDay(-2),
+    aiTool: 'Claude',
+    contextUpdated: hoursAgo(26),
+    context: `## Background
+Users have no way to sign in, so nothing is saved between visits.
+
+## Constraints
+- Email and password only for now
+- Reuse the existing form components
+
+## Tried so far
+Nothing yet.
+
+## Pick up
+Start with the form layout, then add validation.
+`,
   },
   {
     id: 'task-2',
@@ -118,6 +161,21 @@ const SEED_TASKS = [
     assignee: TEAM[1],
     dueDate: isoDay(1),
     createdDate: isoDay(-5),
+    aiTool: 'Cursor',
+    contextUpdated: hoursAgo(5),
+    context: `## Background
+Checkout button does nothing in Safari when the cart has more than 10 items.
+
+## Constraints
+- Must not change the cart data shape
+
+## Tried so far
+- Reproduced on Safari 17 only
+- Click handler fires, but the request never sends
+
+## Pick up
+Check the request payload size limit in the checkout call.
+`,
   },
   {
     id: 'task-3',
@@ -128,6 +186,20 @@ const SEED_TASKS = [
     assignee: TEAM[2],
     dueDate: isoDay(-1),
     createdDate: isoDay(-8),
+    aiTool: 'ChatGPT',
+    contextUpdated: hoursAgo(50),
+    context: `## Background
+People want a dark theme that remembers their choice.
+
+## Constraints
+- Use Tailwind colour tokens, no new libraries
+
+## Tried so far
+Toggle works, but the choice is lost on reload.
+
+## Pick up
+Persist the theme with the useLocalStorage hook.
+`,
   },
 ];
 
@@ -138,6 +210,9 @@ const EMPTY_TASK = {
   status: 'todo',
   assignee: TEAM[0],
   dueDate: '',
+  context: CONTEXT_TEMPLATE,
+  aiTool: AI_TOOLS[0],
+  contextUpdated: null,
 };
 
 /* ---------- M6 tag-style: type stripe + icon chip ---------- */
@@ -256,6 +331,12 @@ function TaskCard({ task, onOpen, onDragStart }) {
         <dd className={due.text}>{formatDate(task.dueDate)}</dd>
         <dt>Created</dt>
         <dd>{formatDate(task.createdDate)}</dd>
+        {task.aiTool && (
+          <>
+            <dt>AI tool</dt>
+            <dd className={due.text}>{task.aiTool}</dd>
+          </>
+        )}
       </dl>
 
       {due.tag && (
@@ -317,7 +398,8 @@ const buttonFocus =
 
 function TaskModal({ task, onSave, onDelete, onClose }) {
   const isEdit = Boolean(task.id);
-  const [form, setForm] = useState(task);
+  // Defaults cover tasks saved before the Context fields existed.
+  const [form, setForm] = useState({ context: '', aiTool: AI_TOOLS[0], contextUpdated: null, ...task });
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
   const submit = (e) => {
@@ -334,7 +416,7 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md space-y-4 rounded-md border border-white/20 bg-[#2B2B2B] p-6"
+        className="max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-md border border-white/20 bg-[#2B2B2B] p-6"
       >
         <h2 className="text-base font-semibold uppercase text-[#FFFFFF]">
           {isEdit ? 'Edit task' : 'New task'}
@@ -382,7 +464,32 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
           </label>
         </div>
 
-        {/* TODO M9 context: add a curated "Context" briefing textarea here. */}
+        {/* M9 context */}
+        <div className="space-y-3 border-t border-white/10 pt-4">
+          <h3 className="text-base font-semibold uppercase text-[#FFFFFF]">Context</h3>
+          <label className={labelClass}>
+            Briefing (Markdown supported)
+            <textarea
+              rows={10}
+              value={form.context}
+              onChange={set('context')}
+              className={`${fieldClass} font-mono leading-relaxed`}
+            />
+          </label>
+          <p className="text-xs text-[#999696]">
+            {form.contextUpdated
+              ? `Context last updated ${formatDateTime(form.contextUpdated)}`
+              : 'Context not edited yet'}
+          </p>
+          <label className={labelClass}>
+            AI tool used
+            <select value={form.aiTool} onChange={set('aiTool')} className={fieldClass}>
+              {AI_TOOLS.map((tool) => (
+                <option key={tool}>{tool}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {isEdit && <p className="text-xs text-[#999696]">Created {formatDate(form.createdDate)}</p>}
 
@@ -460,13 +567,26 @@ export default function App() {
   const saveTask = (data) => {
     if (data.id) {
       const previous = tasks.find((t) => t.id === data.id);
-      setTasks(tasks.map((t) => (t.id === data.id ? { ...t, ...data } : t)));
+      // M9: only bump the timestamp when the context text actually changed
+      const contextChanged = (previous?.context ?? '') !== data.context;
+      const contextUpdated = contextChanged ? new Date().toISOString() : previous?.contextUpdated ?? null;
+      setTasks(tasks.map((t) => (t.id === data.id ? { ...t, ...data, contextUpdated } : t)));
       // M7 handoff toast: only when an existing task's assignee actually changes
       if (previous && previous.assignee !== data.assignee) {
         showToast(COPY.handoff(data.assignee));
       }
     } else {
-      setTasks([...tasks, { ...data, id: crypto.randomUUID(), createdDate: isoDay(0) }]);
+      // A new task only gets a timestamp once its template has been edited
+      const edited = data.context.trim() !== CONTEXT_TEMPLATE.trim();
+      setTasks([
+        ...tasks,
+        {
+          ...data,
+          id: crypto.randomUUID(),
+          createdDate: isoDay(0),
+          contextUpdated: edited ? new Date().toISOString() : null,
+        },
+      ]);
     }
     setEditing(null);
   };
