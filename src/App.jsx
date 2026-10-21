@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Vibecoding Project Tracker — starter scaffold.
+ * TrackIt — Vibecoding Project Tracker.
  *
- * Implemented here: M4 (data-model), M5 (crud-modal) and the card colouring/icons from M6 (tag-style).
- * Remaining milestones are still marked with `TODO M<n>` comments.
+ * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (card colour + icons),
+ * and the M7 handoff toast (fires when an assignee is changed).
+ * Still open: M7 "Hand off to..." dropdown, M8 due-tint, M9 context, M10 copy-prompt,
+ * M11 anchors, M12 secret-sauce. Search for `TODO M<n>`.
  *
- * Colours are Tailwind arbitrary values, so they work without any tailwind.config.js changes.
+ * Colours are Tailwind arbitrary values, so no tailwind.config.js changes are needed.
  * Palette: brandPrimary #3E3C6B, brandAccent #4F4C8A, surfacePage #000000, surfaceCard #2B2B2B,
- * textPrimary #FFFFFF, textMuted #999696, feature #10B981, bug #DC2626.
+ * textPrimary #FFFFFF, textMuted #999696, feature #10B981, bug #DC2626, danger #A6170A.
+ *
+ * Type scale: page title 24px semibold · section header 16px semibold uppercase ·
+ * card title 14px medium · body 14px regular · caption 12px regular muted.
  */
 
 /**
@@ -63,6 +68,16 @@ export function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
+/* ---------- voice / microcopy ---------- */
+
+const COPY = {
+  addTask: 'Add Task',
+  emptyColumn: 'Nothing here yet',
+  confirmDelete: "Are you sure? You can't undo this",
+  handoff: (name) => `Handed off to ${name}, it's their problem now`,
+  // TODO M10 copy-prompt toast: 'Copied Successfully!'
+};
+
 /* ---------- helpers & seed data ---------- */
 
 const isoDay = (offset = 0) => {
@@ -70,6 +85,15 @@ const isoDay = (offset = 0) => {
   d.setDate(d.getDate() + offset);
   return d.toISOString().slice(0, 10);
 };
+
+const formatDate = (iso) =>
+  iso
+    ? new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'None';
 
 /** @type {Task[]} */
 const SEED_TASKS = [
@@ -114,22 +138,13 @@ const EMPTY_TASK = {
   dueDate: '',
 };
 
-const formatDate = (iso) =>
-  iso
-    ? new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      })
-    : 'None';
-
 /* ---------- M6 tag-style: card colour + icon per type ---------- */
 
 // Feature cards are emerald, bug cards are crimson.
 // Text is dark on the light emerald and white on the crimson so it stays readable.
 const TYPE_STYLES = {
   feature: { label: 'Feature', card: 'bg-[#10B981]', text: 'text-black', muted: 'text-black/70' },
-  bug:     { label: 'Bug',     card: 'bg-[#DC2626]',     text: 'text-white', muted: 'text-white/80' },
+  bug:     { label: 'Bug',     card: 'bg-[#DC2626]', text: 'text-white', muted: 'text-white/80' },
 };
 
 function CogIcon() {
@@ -168,6 +183,17 @@ function BugIcon() {
   );
 }
 
+// Drag affordance: six dots.
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+      {[8, 16].flatMap((x) =>
+        [5, 12, 19].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" />)
+      )}
+    </svg>
+  );
+}
+
 /* ---------- components ---------- */
 
 function TaskCard({ task, onOpen, onDragStart }) {
@@ -183,10 +209,13 @@ function TaskCard({ task, onOpen, onDragStart }) {
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
       onClick={() => onOpen(task)}
-      className={`cursor-pointer rounded-lg border border-white/20 p-3 shadow-sm hover:border-white/60 ${style.card} ${style.text}`}
+      className={`cursor-pointer rounded-md border border-white/20 p-3 transition-shadow hover:shadow-lg hover:shadow-black/60 ${style.card} ${style.text}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold leading-snug">{task.title}</h3>
+      <div className="flex items-start gap-2">
+        <span title="Drag to move" className={`mt-0.5 shrink-0 cursor-grab ${style.muted}`}>
+          <GripIcon />
+        </span>
+        <h3 className="flex-1 text-sm font-medium leading-snug">{task.title}</h3>
         <span
           role="img"
           aria-label={style.label}
@@ -229,13 +258,13 @@ function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
         setOver(false);
         onDropTask(e, stage.id);
       }}
-      className={`flex min-h-[200px] flex-col rounded-xl border-t-4 border-[#4F4C8A] p-3 transition-colors ${
+      className={`flex min-h-[200px] flex-col rounded-md border-t-4 border-[#4F4C8A] p-3 transition-colors ${
         over ? 'bg-[#3E3C6B]/40' : 'bg-[#3E3C6B]/20'
       }`}
     >
       <header className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-bold text-[#FFFFFF]">{stage.label}</h2>
-        <span className="rounded-full bg-[#2B2B2B] px-2 py-0.5 text-xs font-medium text-[#999696]">
+        <h2 className="text-base font-semibold uppercase text-[#FFFFFF]">{stage.label}</h2>
+        <span className="rounded-full bg-[#2B2B2B] px-2 py-0.5 text-xs text-[#999696]">
           {tasks.length}
         </span>
       </header>
@@ -245,8 +274,8 @@ function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
           <TaskCard key={t.id} task={t} onOpen={onOpen} onDragStart={onDragStart} />
         ))}
         {tasks.length === 0 && (
-          <p className="rounded-lg border border-dashed border-[#999696]/50 p-4 text-center text-sm text-[#999696]">
-            No tasks here. Drag one in or add a new task.
+          <p className="rounded-md border border-dashed border-[#999696]/50 p-4 text-center text-sm text-[#999696]">
+            {COPY.emptyColumn}
           </p>
         )}
       </div>
@@ -256,6 +285,11 @@ function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
 
 const fieldClass =
   'mt-1 w-full rounded-md border border-[#3E3C6B] bg-[#000000] px-3 py-2 text-sm text-[#FFFFFF] [color-scheme:dark] focus:border-[#4F4C8A] focus:outline-none focus:ring-2 focus:ring-[#4F4C8A]/50';
+
+const labelClass = 'block text-xs text-[#999696]';
+
+const buttonFocus =
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]';
 
 function TaskModal({ task, onSave, onDelete, onClose }) {
   const isEdit = Boolean(task.id);
@@ -270,35 +304,37 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <form
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md space-y-4 rounded-xl border border-[#3E3C6B] bg-[#2B2B2B] p-6 shadow-xl"
+        className="w-full max-w-md space-y-4 rounded-md border border-white/20 bg-[#2B2B2B] p-6"
       >
-        <h2 className="text-lg font-bold text-[#FFFFFF]">{isEdit ? 'Edit task' : 'New task'}</h2>
+        <h2 className="text-base font-semibold uppercase text-[#FFFFFF]">
+          {isEdit ? 'Edit task' : 'New task'}
+        </h2>
 
-        <label className="block text-sm font-medium text-[#999696]">
+        <label className={labelClass}>
           Title
           <input autoFocus required value={form.title} onChange={set('title')} className={fieldClass} />
         </label>
 
-        <label className="block text-sm font-medium text-[#999696]">
+        <label className={labelClass}>
           Description
           <textarea rows={3} value={form.description} onChange={set('description')} className={fieldClass} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="block text-sm font-medium text-[#999696]">
+          <label className={labelClass}>
             Type
             <select value={form.type} onChange={set('type')} className={fieldClass}>
               <option value="feature">Feature</option>
               <option value="bug">Bug</option>
             </select>
           </label>
-          <label className="block text-sm font-medium text-[#999696]">
+          <label className={labelClass}>
             Status
             <select value={form.status} onChange={set('status')} className={fieldClass}>
               {STAGES.map((s) => (
@@ -308,7 +344,7 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
               ))}
             </select>
           </label>
-          <label className="block text-sm font-medium text-[#999696]">
+          <label className={labelClass}>
             Assignee
             <select value={form.assignee} onChange={set('assignee')} className={fieldClass}>
               {TEAM.map((name) => (
@@ -316,11 +352,13 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
               ))}
             </select>
           </label>
-          <label className="block text-sm font-medium text-[#999696]">
+          <label className={labelClass}>
             Due date
             <input type="date" value={form.dueDate ?? ''} onChange={set('dueDate')} className={fieldClass} />
           </label>
         </div>
+
+        {/* TODO M9 context: add a curated "Context" briefing textarea here. */}
 
         {isEdit && <p className="text-xs text-[#999696]">Created {formatDate(form.createdDate)}</p>}
 
@@ -329,9 +367,9 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
             <button
               type="button"
               onClick={() => onDelete(task.id)}
-              className="rounded-md px-3 py-2 text-sm font-medium text-[#DC2626] hover:bg-[#DC2626]/10"
+              className={`rounded-md bg-[#A6170A] px-4 py-2 text-sm text-[#FFFFFF] hover:opacity-90 ${buttonFocus}`}
             >
-              Delete task
+              Delete
             </button>
           ) : (
             <span />
@@ -340,19 +378,41 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-4 py-2 text-sm font-medium text-[#999696] hover:bg-[#3E3C6B]/30 hover:text-[#FFFFFF]"
+              className={`rounded-md bg-[#000000] px-4 py-2 text-sm text-[#FFFFFF] hover:bg-[#3E3C6B]/50 ${buttonFocus}`}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-md bg-[#3E3C6B] px-4 py-2 text-sm font-medium text-[#FFFFFF] hover:bg-[#4F4C8A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]"
+              className={`rounded-md bg-[#3E3C6B] px-4 py-2 text-sm text-[#FFFFFF] hover:bg-[#4F4C8A] ${buttonFocus}`}
             >
-              {isEdit ? 'Save changes' : 'Add task'}
+              {isEdit ? 'Save changes' : COPY.addTask}
             </button>
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+/* Pop-up message that clears itself after a few seconds (or when clicked). */
+function Toast({ toast, onDismiss }) {
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(onDismiss, 3500);
+    return () => clearTimeout(timer);
+  }, [toast, onDismiss]);
+
+  if (!toast) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      onClick={onDismiss}
+      className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 cursor-pointer rounded-md border border-white/20 bg-[#4F4C8A] px-4 py-3 text-sm text-[#FFFFFF] shadow-lg shadow-black/60"
+    >
+      {toast.text}
     </div>
   );
 }
@@ -366,12 +426,21 @@ export default function App() {
   // M5 crud-modal: null = closed, otherwise the task (or blank draft) being edited
   const [editing, setEditing] = useState(null);
 
+  // Toast pop-up: null or { id, text }
+  const [toast, setToast] = useState(null);
+  const showToast = (text) => setToast({ id: Date.now(), text });
+
   // TODO M11 anchors:
   //   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
 
   const saveTask = (data) => {
     if (data.id) {
+      const previous = tasks.find((t) => t.id === data.id);
       setTasks(tasks.map((t) => (t.id === data.id ? { ...t, ...data } : t)));
+      // M7 handoff toast: only when an existing task's assignee actually changes
+      if (previous && previous.assignee !== data.assignee) {
+        showToast(COPY.handoff(data.assignee));
+      }
     } else {
       setTasks([...tasks, { ...data, id: crypto.randomUUID(), createdDate: isoDay(0) }]);
     }
@@ -379,7 +448,7 @@ export default function App() {
   };
 
   const deleteTask = (id) => {
-    if (window.confirm('Delete this task?')) {
+    if (window.confirm(COPY.confirmDelete)) {
       setTasks(tasks.filter((t) => t.id !== id));
       setEditing(null);
     }
@@ -393,21 +462,20 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] p-6">
+    <div className="min-h-screen bg-[#000000] p-6 text-[#FFFFFF]">
       <header className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#FFFFFF]">Vibecoding Project Tracker</h1>
-          <p className="text-sm text-[#999696]">
+          <h1 className="text-2xl font-semibold text-[#3E3C6B]">TrackIt</h1>
+          <p className="text-xs text-[#999696]">
             {/* Replace this line with your team name from PRD §11. */}
             Team starter
           </p>
         </div>
         <button
           onClick={() => setEditing({ ...EMPTY_TASK })}
-          aria-label="Add task"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#3E3C6B] text-2xl leading-none text-[#FFFFFF] hover:bg-[#4F4C8A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]"
+          className={`rounded-md bg-[#3E3C6B] px-4 py-2 text-sm text-[#FFFFFF] hover:bg-[#4F4C8A] ${buttonFocus}`}
         >
-          +
+          + {COPY.addTask}
         </button>
       </header>
 
@@ -434,6 +502,8 @@ export default function App() {
           onClose={() => setEditing(null)}
         />
       )}
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }
