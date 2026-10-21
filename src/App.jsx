@@ -3,14 +3,15 @@ import { useState, useEffect } from 'react';
 /**
  * TrackIt — Vibecoding Project Tracker.
  *
- * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (card colour + icons),
- * and the M7 handoff toast (fires when an assignee is changed).
- * Still open: M7 "Hand off to..." dropdown, M8 due-tint, M9 context, M10 copy-prompt,
+ * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (type stripe + icons),
+ * M8 due-tint (card colour + tag by due date) and the M7 handoff toast (fires when an assignee changes).
+ * Still open: M7 "Hand off to..." dropdown, M9 context, M10 copy-prompt,
  * M11 anchors, M12 secret-sauce. Search for `TODO M<n>`.
  *
  * Colours are Tailwind arbitrary values, so no tailwind.config.js changes are needed.
  * Palette: brandPrimary #3E3C6B, brandAccent #4F4C8A, surfacePage #000000, surfaceCard #2B2B2B,
- * textPrimary #FFFFFF, textMuted #999696, feature #10B981, bug #DC2626, danger #A6170A.
+ * textPrimary #FFFFFF, textMuted #999696, feature #10B981, bug #DC2626,
+ * dueSafe #2B2B2B, dueWarning #C9900E, overdue #A6170A, done #0AA1A6.
  *
  * Type scale: page title 24px semibold · section header 16px semibold uppercase ·
  * card title 14px medium · body 14px regular · caption 12px regular muted.
@@ -74,7 +75,7 @@ const COPY = {
   addTask: 'Add Task',
   emptyColumn: 'Nothing here yet',
   confirmDelete: "Are you sure? You can't undo this",
-  handoff: (name) => `Handed off to ${name}, it's their problem now`,
+  handoff: (name) => `Handed off to ${name}, its their problem now`,
   // TODO M10 copy-prompt toast: 'Copied Successfully!'
 };
 
@@ -83,7 +84,8 @@ const COPY = {
 const isoDay = (offset = 0) => {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
 const formatDate = (iso) =>
@@ -114,7 +116,7 @@ const SEED_TASKS = [
     type: 'bug',
     status: 'in-progress',
     assignee: TEAM[1],
-    dueDate: isoDay(2),
+    dueDate: isoDay(1),
     createdDate: isoDay(-5),
   },
   {
@@ -124,7 +126,7 @@ const SEED_TASKS = [
     type: 'feature',
     status: 'review',
     assignee: TEAM[2],
-    dueDate: isoDay(4),
+    dueDate: isoDay(-1),
     createdDate: isoDay(-8),
   },
 ];
@@ -138,13 +140,35 @@ const EMPTY_TASK = {
   dueDate: '',
 };
 
-/* ---------- M6 tag-style: card colour + icon per type ---------- */
+/* ---------- M6 tag-style: type stripe + icon chip ---------- */
 
-// Feature cards are emerald, bug cards are crimson.
-// Text is dark on the light emerald and white on the crimson so it stays readable.
+// The left stripe and icon chip carry the feature (emerald) / bug (crimson) colour.
 const TYPE_STYLES = {
-  feature: { label: 'Feature', card: 'bg-[#10B981]', text: 'text-black', muted: 'text-black/70' },
-  bug:     { label: 'Bug',     card: 'bg-[#DC2626]', text: 'text-white', muted: 'text-white/80' },
+  feature: { label: 'Feature', stripe: 'border-l-[#10B981]', chip: 'bg-[#10B981] text-black' },
+  bug:     { label: 'Bug',     stripe: 'border-l-[#DC2626]', chip: 'bg-[#DC2626] text-white' },
+};
+
+/* ---------- M8 due-tint: card colour + tag by due date ---------- */
+
+// done → done; past due → overdue; due today or tomorrow (under 2 days) → warning; otherwise safe.
+function dueState(task) {
+  if (task.status === 'done') return 'done';
+  if (!task.dueDate) return 'safe';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const due = new Date(task.dueDate + 'T00:00:00');
+  const daysLeft = Math.round((due - today) / 86400000);
+  if (daysLeft < 0) return 'overdue';
+  if (daysLeft < 2) return 'warning';
+  return 'safe';
+}
+
+// Text is black on the amber and turquoise cards so it stays readable.
+const DUE_STYLES = {
+  safe:    { card: 'bg-[#2B2B2B]', text: 'text-white', muted: 'text-[#999696]', tag: null },
+  warning: { card: 'bg-[#C9900E]', text: 'text-black', muted: 'text-black/70',   tag: 'Due soon' },
+  overdue: { card: 'bg-[#A6170A]', text: 'text-white', muted: 'text-white/80',   tag: 'Overdue!' },
+  done:    { card: 'bg-[#0AA1A6]', text: 'text-black', muted: 'text-black/70',   tag: 'Complete' },
 };
 
 function CogIcon() {
@@ -197,48 +221,48 @@ function GripIcon() {
 /* ---------- components ---------- */
 
 function TaskCard({ task, onOpen, onDragStart }) {
-  const style = TYPE_STYLES[task.type];
+  const type = TYPE_STYLES[task.type];
   const Icon = task.type === 'bug' ? BugIcon : CogIcon;
-  const overdue =
-    task.dueDate &&
-    task.status !== 'done' &&
-    new Date(task.dueDate + 'T23:59:59') < new Date();
+  const due = DUE_STYLES[dueState(task)];
 
   return (
     <article
       draggable
       onDragStart={(e) => onDragStart(e, task.id)}
       onClick={() => onOpen(task)}
-      className={`cursor-pointer rounded-md border border-white/20 p-3 transition-shadow hover:shadow-lg hover:shadow-black/60 ${style.card} ${style.text}`}
+      className={`cursor-pointer rounded-md border border-l-4 border-white/20 ${type.stripe} p-3 transition-shadow hover:shadow-lg hover:shadow-black/60 ${due.card} ${due.text}`}
     >
       <div className="flex items-start gap-2">
-        <span title="Drag to move" className={`mt-0.5 shrink-0 cursor-grab ${style.muted}`}>
+        <span title="Drag to move" className={`mt-0.5 shrink-0 cursor-grab ${due.muted}`}>
           <GripIcon />
         </span>
         <h3 className="flex-1 text-sm font-medium leading-snug">{task.title}</h3>
         <span
           role="img"
-          aria-label={style.label}
-          title={style.label}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black/30 text-white"
+          aria-label={type.label}
+          title={type.label}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${type.chip}`}
         >
           <Icon />
         </span>
       </div>
 
-      {task.description && <p className={`mt-2 text-sm ${style.muted}`}>{task.description}</p>}
+      {task.description && <p className={`mt-2 text-sm ${due.muted}`}>{task.description}</p>}
 
-      <dl className={`mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs ${style.muted}`}>
+      <dl className={`mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs ${due.muted}`}>
         <dt>Assignee</dt>
-        <dd className={style.text}>{task.assignee || 'Unassigned'}</dd>
+        <dd className={due.text}>{task.assignee || 'Unassigned'}</dd>
         <dt>Due</dt>
-        <dd className={`${style.text} ${overdue ? 'font-bold underline' : ''}`}>
-          {formatDate(task.dueDate)}
-          {overdue && ' (overdue)'}
-        </dd>
+        <dd className={due.text}>{formatDate(task.dueDate)}</dd>
         <dt>Created</dt>
         <dd>{formatDate(task.createdDate)}</dd>
       </dl>
+
+      {due.tag && (
+        <span className="mt-3 inline-block rounded-md bg-black/30 px-2 py-0.5 text-xs font-medium text-white">
+          {due.tag}
+        </span>
+      )}
     </article>
   );
 }
