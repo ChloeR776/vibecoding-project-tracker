@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
  *
  * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (type stripe + icons),
  * M8 due-tint (card colour + tag by due date), M9 context (Markdown briefing,
- * AI tool, last-updated timestamp) and the M7 handoff toast (fires when an assignee changes).
- * Still open: M7 "Hand off to..." dropdown, M10 copy-prompt,
+ * AI tool, last-updated timestamp), M10 copy-prompt (Copy context button) and the M7 handoff toast (fires when an assignee changes).
+ * Still open: M7 "Hand off to..." dropdown,
  * M11 anchors, M12 secret-sauce. Search for `TODO M<n>`.
  *
  * Colours are Tailwind arbitrary values, so no tailwind.config.js changes are needed.
@@ -93,7 +93,10 @@ const COPY = {
   emptyColumn: 'Nothing here yet',
   confirmDelete: "Are you sure? You can't undo this",
   handoff: (name) => `Handed off to ${name}, its their problem now`,
-  // TODO M10 copy-prompt toast: 'Copied Successfully!'
+  copyContext: 'Copy context',
+  copied: 'Copied Successfully!',
+  nothingToCopy: "Sorry, there's nothing to copy here",
+  copyFailed: "Couldn't copy. Select the text and copy it by hand",
 };
 
 /* ---------- helpers & seed data ---------- */
@@ -293,9 +296,60 @@ function GripIcon() {
   );
 }
 
+/* ---------- M10 copy-prompt: turn a task into a briefing to paste into an AI tool ---------- */
+
+// Drops template headings with nothing under them, so an untouched template doesn't clutter
+// the paste. Anything the person has typed (even on a heading line) is kept.
+const EMPTY_TEMPLATE_HEADING = /^#{1,6}\s+(Background|Constraints|Tried so far|Pick up)\s*$/i;
+
+function cleanContext(markdown = '') {
+  return markdown
+    .split(/^(?=#{1,6}\s)/m)
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk && !EMPTY_TEMPLATE_HEADING.test(chunk))
+    .join('\n\n');
+}
+
+function buildBriefing(task) {
+  const stage = STAGES.find((s) => s.id === task.status)?.label ?? task.status;
+  const details = [
+    `Type: ${TYPE_STYLES[task.type]?.label ?? task.type}`,
+    `Status: ${stage}`,
+    task.dueDate && `Due: ${formatDate(task.dueDate)}`,
+    task.assignee && `Assignee: ${task.assignee}`,
+  ].filter(Boolean);
+
+  const parts = [
+    "Here is the briefing for a task I'm working on.",
+    `Task: ${task.title}\n${details.join('\n')}`,
+  ];
+  if (task.description?.trim()) parts.push(`Description:\n${task.description.trim()}`);
+  const context = cleanContext(task.context);
+  if (context) parts.push(`Context:\n\n${context}`);
+  return parts.join('\n\n') + '\n';
+}
+
+function ClipboardIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+    </svg>
+  );
+}
+
 /* ---------- components ---------- */
 
-function TaskCard({ task, onOpen, onDragStart }) {
+function TaskCard({ task, onOpen, onDragStart, onCopy }) {
   const type = TYPE_STYLES[task.type];
   const Icon = task.type === 'bug' ? BugIcon : CogIcon;
   const due = DUE_STYLES[dueState(task)];
@@ -339,16 +393,32 @@ function TaskCard({ task, onOpen, onDragStart }) {
         )}
       </dl>
 
-      {due.tag && (
-        <span className="mt-3 inline-block rounded-md bg-black/30 px-2 py-0.5 text-xs font-medium text-white">
-          {due.tag}
-        </span>
-      )}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        {due.tag ? (
+          <span className="rounded-md bg-black/30 px-2 py-0.5 text-xs font-medium text-white">
+            {due.tag}
+          </span>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          aria-label={`${COPY.copyContext}: ${task.title}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(task);
+          }}
+          className={`flex items-center gap-1 rounded-md bg-black/30 px-2 py-1 text-xs font-medium text-white hover:bg-black/50 ${buttonFocus}`}
+        >
+          <ClipboardIcon />
+          {COPY.copyContext}
+        </button>
+      </div>
     </article>
   );
 }
 
-function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
+function Column({ stage, tasks, onOpen, onDragStart, onDropTask, onCopy }) {
   const [over, setOver] = useState(false);
 
   return (
@@ -376,7 +446,7 @@ function Column({ stage, tasks, onOpen, onDragStart, onDropTask }) {
 
       <div className="flex flex-1 flex-col gap-3">
         {tasks.map((t) => (
-          <TaskCard key={t.id} task={t} onOpen={onOpen} onDragStart={onDragStart} />
+          <TaskCard key={t.id} task={t} onOpen={onOpen} onDragStart={onDragStart} onCopy={onCopy} />
         ))}
         {tasks.length === 0 && (
           <p className="rounded-md border border-dashed border-[#999696]/50 p-4 text-center text-sm text-[#999696]">
@@ -396,7 +466,7 @@ const labelClass = 'block text-xs text-[#999696]';
 const buttonFocus =
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4F4C8A]';
 
-function TaskModal({ task, onSave, onDelete, onClose }) {
+function TaskModal({ task, onSave, onDelete, onClose, onCopy }) {
   const isEdit = Boolean(task.id);
   // Defaults cover tasks saved before the Context fields existed.
   const [form, setForm] = useState({ context: '', aiTool: AI_TOOLS[0], contextUpdated: null, ...task });
@@ -466,7 +536,17 @@ function TaskModal({ task, onSave, onDelete, onClose }) {
 
         {/* M9 context */}
         <div className="space-y-3 border-t border-white/10 pt-4">
-          <h3 className="text-base font-semibold uppercase text-[#FFFFFF]">Context</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold uppercase text-[#FFFFFF]">Context</h3>
+            <button
+              type="button"
+              onClick={() => onCopy(form)}
+              className={`flex items-center gap-1 rounded-md bg-[#3E3C6B] px-3 py-1.5 text-xs text-[#FFFFFF] hover:bg-[#4F4C8A] ${buttonFocus}`}
+            >
+              <ClipboardIcon />
+              {COPY.copyContext}
+            </button>
+          </div>
           <label className={labelClass}>
             Briefing (Markdown supported)
             <textarea
@@ -564,6 +644,39 @@ export default function App() {
   // TODO M11 anchors:
   //   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
 
+  // M10: copy a clean briefing to the clipboard
+  const copyContext = async (task) => {
+    // Always work from the freshest saved version of the task, with any unsaved
+    // edits from the modal layered on top, so the copy matches what's on screen.
+    const saved = tasks.find((t) => t.id === task.id);
+    const source = saved ? { ...saved, ...task } : task;
+
+    // An empty (or heading-only) context has nothing worth copying
+    if (!cleanContext(source.context)) {
+      showToast(COPY.nothingToCopy);
+      return;
+    }
+
+    const text = buildBriefing(source);
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(COPY.copied);
+    } catch {
+      // Fallback for browsers or contexts where the Clipboard API is blocked
+      const box = document.createElement('textarea');
+      box.value = text;
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.focus();
+      box.select();
+      box.setSelectionRange(0, text.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(box);
+      showToast(ok ? COPY.copied : COPY.copyFailed);
+    }
+  };
+
   const saveTask = (data) => {
     if (data.id) {
       const previous = tasks.find((t) => t.id === data.id);
@@ -634,6 +747,7 @@ export default function App() {
             onOpen={setEditing}
             onDragStart={onDragStart}
             onDropTask={onDropTask}
+            onCopy={copyContext}
           />
         ))}
       </main>
@@ -643,6 +757,7 @@ export default function App() {
           task={editing}
           onSave={saveTask}
           onDelete={deleteTask}
+          onCopy={copyContext}
           onClose={() => setEditing(null)}
         />
       )}
