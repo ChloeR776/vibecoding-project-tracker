@@ -5,9 +5,10 @@ import { useState, useEffect } from 'react';
  *
  * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (type stripe + icons),
  * M8 due-tint (card colour + tag by due date), M9 context (Markdown briefing,
- * AI tool, last-updated timestamp), M10 copy-prompt (Copy context button) and the M7 handoff toast (fires when an assignee changes).
+ * AI tool, last-updated timestamp), M10 copy-prompt (Copy context button),
+ * M11 anchors (pinned deliverables banner) and the M7 handoff toast (fires when an assignee changes).
  * Still open: M7 "Hand off to..." dropdown,
- * M11 anchors, M12 secret-sauce. Search for `TODO M<n>`.
+ * M12 secret-sauce. Search for `TODO M<n>`.
  *
  * Colours are Tailwind arbitrary values, so no tailwind.config.js changes are needed.
  * Palette: brandPrimary #3E3C6B, brandAccent #4F4C8A, surfacePage #000000, surfaceCard #2B2B2B,
@@ -628,6 +629,82 @@ function Toast({ toast, onDismiss }) {
   );
 }
 
+/* ---------- M11 anchors: pinned deliverables banner ---------- */
+
+const ANCHORS = [
+  { id: 'presentation', label: 'Presentation' },
+  { id: 'demo', label: 'Demo' },
+  { id: 'report', label: 'Report' },
+  { id: 'documentation', label: 'Documentation' },
+];
+
+// Returns a safe, clickable http(s) address for what was typed, or null if it isn't one.
+function toHref(value) {
+  const v = value.trim();
+  if (!v) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`;
+  try {
+    const url = new URL(withScheme);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function AnchorBoard({ anchors, onChange }) {
+  return (
+    <section
+      aria-label="Project deliverables"
+      className="-mx-6 mb-4 border-b border-white/10 bg-[#000000] px-6 pb-4 pt-3 md:sticky md:top-0 md:z-[5]"
+    >
+      <h2 className="mb-2 text-base font-semibold uppercase text-[#FFFFFF]">Deliverables</h2>
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {ANCHORS.map(({ id, label }) => {
+          const value = anchors[id] ?? '';
+          const hasLink = value.trim() !== '';
+          const href = toHref(value);
+          return (
+            <li key={id} className="rounded-md border border-white/20 bg-[#2B2B2B] p-3">
+              <div className="flex items-center gap-2">
+                <span
+                  role="img"
+                  aria-label={hasLink ? 'Link added' : 'No link yet'}
+                  title={hasLink ? 'Link added' : 'No link yet'}
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                    hasLink ? 'bg-[#10B981]' : 'border border-[#999696]'
+                  }`}
+                />
+                <h3 className="flex-1 text-sm font-medium text-[#FFFFFF]">{label}</h3>
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#FFFFFF] underline hover:text-[#999696]"
+                  >
+                    Open
+                  </a>
+                ) : (
+                  <span className="text-xs text-[#999696]">{hasLink ? 'Check link' : 'Not added'}</span>
+                )}
+              </div>
+              <input
+                type="url"
+                inputMode="url"
+                value={value}
+                onChange={(e) => onChange(id, e.target.value)}
+                placeholder="https://"
+                aria-label={`${label} link`}
+                className={fieldClass}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /* ---------- app ---------- */
 
 export default function App() {
@@ -641,8 +718,13 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const showToast = (text) => setToast({ id: Date.now(), text });
 
-  // TODO M11 anchors:
-  //   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
+  // M11 anchors: one saved link per deliverable
+  const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', {
+    presentation: '',
+    demo: '',
+    report: '',
+    documentation: '',
+  });
 
   // M10: copy a clean briefing to the clipboard
   const copyContext = async (task) => {
@@ -736,7 +818,10 @@ export default function App() {
         </button>
       </header>
 
-      {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+      <AnchorBoard
+        anchors={anchors}
+        onChange={(id, url) => setAnchors({ ...anchors, [id]: url })}
+      />
 
       <main className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAGES.map((stage) => (
