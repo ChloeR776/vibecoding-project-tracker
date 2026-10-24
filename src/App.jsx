@@ -6,7 +6,8 @@ import { useState, useEffect } from 'react';
  * Implemented: M4 data-model, M5 crud-modal, M6 tag-style (type stripe + icons),
  * M8 due-tint (card colour + tag by due date), M9 context (Markdown briefing,
  * AI tool, last-updated timestamp), M10 copy-prompt (Copy context button),
- * M11 anchors (pinned deliverables banner) and the M7 handoff toast (fires when an assignee changes).
+ * M11 anchors (pinned deliverables banner),
+ * stage-change sounds (Web Audio, with an on/off toggle) and the M7 handoff toast (fires when an assignee changes).
  * Still open: M7 "Hand off to..." dropdown,
  * M12 secret-sauce. Search for `TODO M<n>`.
  *
@@ -629,6 +630,59 @@ function Toast({ toast, onDismiss }) {
   );
 }
 
+/* ---------- stage-change sounds (generated with Web Audio, no files needed) ---------- */
+
+let audioCtx = null;
+
+// Created lazily; browsers only allow audio after the person has interacted with the page.
+function getAudio() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playNote(ctx, freq, start, duration, volume = 0.15, type = 'sine') {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + duration + 0.05);
+}
+
+const SOUNDS = {
+  // Moved forward a stage: a quick, happy two-note rise (E5 → A5)
+  up: (ctx, t) => {
+    playNote(ctx, 659.25, t, 0.18);
+    playNote(ctx, 880, t + 0.1, 0.35);
+  },
+  // Moved to Done: a bright C-major run with a sparkly chord on top
+  done: (ctx, t) => {
+    [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) =>
+      playNote(ctx, freq, t + i * 0.09, 0.35, 0.16)
+    );
+    [1046.5, 1318.5, 1568].forEach((freq) => playNote(ctx, freq, t + 0.38, 0.7, 0.09, 'triangle'));
+  },
+  // Moved back a stage: one plain, mid-pitched ping
+  down: (ctx, t) => playNote(ctx, 440, t, 0.4, 0.14),
+};
+
+function playStageSound(from, to) {
+  if (from === to) return;
+  const ctx = getAudio();
+  if (!ctx) return;
+  const order = STAGES.map((s) => s.id);
+  const kind = to === 'done' ? 'done' : order.indexOf(to) > order.indexOf(from) ? 'up' : 'down';
+  SOUNDS[kind](ctx, ctx.currentTime + 0.02);
+}
+
 /* ---------- M11 anchors: pinned deliverables banner ---------- */
 
 const ANCHORS = [
@@ -714,6 +768,19 @@ export default function App() {
   // M5 crud-modal: null = closed, otherwise the task (or blank draft) being edited
   const [editing, setEditing] = useState(null);
 
+  // Stage-change sounds, with an on/off toggle that is remembered
+  const [soundOn, setSoundOn] = useLocalStorage('vibetracker.sound', true);
+  const playMoveSound = (from, to) => {
+    if (soundOn) playStageSound(from, to);
+  };
+
+  // Warm up audio on the first click/tap so the first ping isn't blocked by the browser
+  useEffect(() => {
+    const prime = () => getAudio();
+    window.addEventListener('pointerdown', prime, { once: true });
+    return () => window.removeEventListener('pointerdown', prime);
+  }, []);
+
   // Toast pop-up: null or { id, text }
   const [toast, setToast] = useState(null);
   const showToast = (text) => setToast({ id: Date.now(), text });
@@ -766,6 +833,8 @@ export default function App() {
       const contextChanged = (previous?.context ?? '') !== data.context;
       const contextUpdated = contextChanged ? new Date().toISOString() : previous?.contextUpdated ?? null;
       setTasks(tasks.map((t) => (t.id === data.id ? { ...t, ...data, contextUpdated } : t)));
+      // Stage-change sound (only plays if the status really changed)
+      if (previous) playMoveSound(previous.status, data.status);
       // M7 handoff toast: only when an existing task's assignee actually changes
       if (previous && previous.assignee !== data.assignee) {
         showToast(COPY.handoff(data.assignee));
@@ -797,6 +866,8 @@ export default function App() {
 
   const onDropTask = (e, status) => {
     const id = e.dataTransfer.getData('text/plain');
+    const moved = tasks.find((t) => t.id === id);
+    if (moved) playMoveSound(moved.status, status);
     setTasks(tasks.map((t) => (t.id === id ? { ...t, status } : t)));
   };
 
@@ -810,12 +881,22 @@ export default function App() {
             Team starter
           </p>
         </div>
-        <button
-          onClick={() => setEditing({ ...EMPTY_TASK })}
-          className={`rounded-md bg-[#3E3C6B] px-4 py-2 text-sm text-[#FFFFFF] hover:bg-[#4F4C8A] ${buttonFocus}`}
-        >
-          + {COPY.addTask}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-pressed={soundOn}
+            onClick={() => setSoundOn(!soundOn)}
+            className={`rounded-md bg-[#2B2B2B] px-4 py-2 text-sm text-[#FFFFFF] hover:bg-[#3E3C6B] ${buttonFocus}`}
+          >
+            Sound: {soundOn ? 'On' : 'Off'}
+          </button>
+          <button
+            onClick={() => setEditing({ ...EMPTY_TASK })}
+            className={`rounded-md bg-[#3E3C6B] px-4 py-2 text-sm text-[#FFFFFF] hover:bg-[#4F4C8A] ${buttonFocus}`}
+          >
+            + {COPY.addTask}
+          </button>
+        </div>
       </header>
 
       <AnchorBoard
