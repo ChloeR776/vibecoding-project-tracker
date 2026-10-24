@@ -130,80 +130,139 @@ const formatDateTime = (iso) =>
     minute: '2-digit',
   });
 
-/** @type {Task[]} */
+/** @type {Task[]} Five starter tasks covering every column, type, AI tool and due-date state. */
 const SEED_TASKS = [
   {
     id: 'task-1',
-    title: 'Add user login page',
-    description: 'Build the sign-in form with email and password validation.',
+    title: 'Build login and sign-up page',
+    description: 'Create the sign-in and registration forms so users can have their own saved boards.',
     type: 'feature',
     status: 'todo',
     assignee: TEAM[0],
-    dueDate: isoDay(7),
-    createdDate: isoDay(-2),
+    dueDate: isoDay(6),
+    createdDate: isoDay(-3),
     aiTool: 'Claude',
-    contextUpdated: hoursAgo(26),
+    contextUpdated: hoursAgo(28),
     context: `## Background
-Users have no way to sign in, so nothing is saved between visits.
+Right now anyone who opens the app sees the same shared board. We want each person to sign in so their tasks and deliverable links belong to them.
 
 ## Constraints
-- Email and password only for now
-- Reuse the existing form components
+- Email and password only, no social logins for now
+- Reuse the existing input and button styles
+- Passwords must never be stored in localStorage
 
 ## Tried so far
-Nothing yet.
+Sketched the two forms on paper. Nothing built yet.
 
 ## Pick up
-Start with the form layout, then add validation.
+Start with the sign-in form layout and client-side validation (email format, minimum 8 characters), then add the sign-up page.
 `,
   },
   {
     id: 'task-2',
-    title: 'Fix broken checkout button',
-    description: 'The checkout button does nothing on Safari when the cart has more than 10 items.',
+    title: 'Fix checkout button failing on Safari',
+    description: 'The Pay now button does nothing on Safari when the basket has more than 10 items.',
     type: 'bug',
     status: 'in-progress',
     assignee: TEAM[1],
     dueDate: isoDay(1),
     createdDate: isoDay(-5),
     aiTool: 'Cursor',
-    contextUpdated: hoursAgo(5),
+    contextUpdated: hoursAgo(4),
     context: `## Background
-Checkout button does nothing in Safari when the cart has more than 10 items.
+Customers on Safari (desktop and iPhone) report that clicking Pay now does nothing once they have 11 or more items. Chrome and Firefox work fine.
 
 ## Constraints
-- Must not change the cart data shape
+- Must not change the basket data shape, other pages depend on it
+- Fix needs to ship before the demo
 
 ## Tried so far
-- Reproduced on Safari 17 only
-- Click handler fires, but the request never sends
+- Reproduced on Safari 17 with 11 items
+- The click handler fires, but the network request is never sent
+- Suspect the request body is too large for the current serialisation
 
 ## Pick up
-Check the request payload size limit in the checkout call.
+Log the size of the payload in the checkout call and try sending only item IDs and quantities instead of the full item objects.
 `,
   },
   {
     id: 'task-3',
-    title: 'Dark mode toggle',
-    description: 'Add a theme switch to the settings menu and remember the choice.',
+    title: 'Add dark mode toggle',
+    description: 'Let people switch between light and dark themes from the settings menu and remember their choice.',
     type: 'feature',
     status: 'review',
     assignee: TEAM[2],
     dueDate: isoDay(-1),
-    createdDate: isoDay(-8),
+    createdDate: isoDay(-9),
     aiTool: 'ChatGPT',
-    contextUpdated: hoursAgo(50),
+    contextUpdated: hoursAgo(52),
     context: `## Background
-People want a dark theme that remembers their choice.
+Several testers asked for a dark theme. The toggle and the colour variables are built and waiting for review.
 
 ## Constraints
-- Use Tailwind colour tokens, no new libraries
+- Use the existing colour tokens, no new libraries
+- Must meet contrast guidelines for body text in both themes
 
 ## Tried so far
-Toggle works, but the choice is lost on reload.
+- Toggle switches the theme instantly
+- Choice is saved with the useLocalStorage hook and survives a reload
+- Checked contrast on the board and the modal
 
 ## Pick up
-Persist the theme with the useLocalStorage hook.
+Reviewer to check the Deliverables banner and the toast in dark mode, as those were not tested yet.
+`,
+  },
+  {
+    id: 'task-4',
+    title: 'Profile photo upload crashes on large files',
+    description: 'Uploading a photo over about 5 MB freezes the page and the upload never completes.',
+    type: 'bug',
+    status: 'in-progress',
+    assignee: TEAM[0],
+    dueDate: isoDay(4),
+    createdDate: isoDay(-2),
+    aiTool: 'Replit',
+    contextUpdated: hoursAgo(9),
+    context: `## Background
+A tester uploaded a 12 MB phone photo and the tab froze. Smaller images upload without trouble.
+
+## Constraints
+- Keep the maximum accepted size at 10 MB
+- Output must stay a JPEG or PNG so it displays everywhere
+
+## Tried so far
+- Confirmed the freeze happens while the image is read into memory
+- Tried a lower upload limit, but that just hides the problem
+
+## Pick up
+Resize and compress the image in the browser (canvas, max 1024px wide) before uploading, and show a friendly message if the file is too large.
+`,
+  },
+  {
+    id: 'task-5',
+    title: 'Design landing page hero section',
+    description: 'Create the headline, short pitch and call-to-action button at the top of the landing page.',
+    type: 'feature',
+    status: 'done',
+    assignee: TEAM[1],
+    dueDate: isoDay(-3),
+    createdDate: isoDay(-12),
+    aiTool: 'Lovable',
+    contextUpdated: hoursAgo(76),
+    context: `## Background
+The landing page needed a clear first impression for the final presentation, explaining what TrackIt does in one sentence.
+
+## Constraints
+- Headline under 8 words
+- Use the brand colours, black background and purple accents
+- Must work on mobile screens
+
+## Tried so far
+- Generated three layout options with Lovable and picked the centred one
+- Tested the copy with two teammates and shortened the headline
+
+## Pick up
+Finished and merged. The only follow-up is swapping the placeholder screenshot for a real one before the demo.
 `,
   },
 ];
